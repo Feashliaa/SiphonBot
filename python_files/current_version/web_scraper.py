@@ -107,15 +107,17 @@ class WebScraper:
                     )
                 else:
                     print("No image, video, gif, or gallery found.")
-                    await interaction.followup.send(
-                        f"No image, video, gif, or gallery found for post: {title} ({post.get('url')})"
-                    )
+                    if interaction is not None and hasattr(interaction, "followup"):
+                        await interaction.followup.send(
+                            f"No image, video, gif, or gallery found for post: {title} ({post.get('url')})"
+                        )
 
         except Exception as e:
             print("Error getting post content:", e)
-            await interaction.followup.send(
-                f"An unexpected error occurred while processing the post: {e}"
-            )
+            if interaction is not None and hasattr(interaction, "followup"):
+                await interaction.followup.send(
+                    f"An unexpected error occurred while processing the post: {e}"
+                )
 
     async def process_gallery(self, post, title, interaction, nsfw):
         try:
@@ -194,8 +196,10 @@ class WebScraper:
                 content_type = response.headers.get("Content-Type")
 
                 if (
-                    "application/vnd.apple.mpegurl" in content_type
-                    or "application/x-mpegurl" in content_type
+                    content_type is not None and (
+                        "application/vnd.apple.mpegurl" in content_type
+                        or "application/x-mpegurl" in content_type
+                    )
                 ):
                     # HLS stream detected, use FFmpeg to convert
                     video_filename = sanitize_filename(f"{title}.mp4")
@@ -247,7 +251,7 @@ class WebScraper:
                         # Send video to Discord
 
                         # Regular expression to remove the /DASH and everything after it
-                        trimmed_video_url = re.sub(r"/DASH.*", "", backup_video)
+                        trimmed_video_url = re.sub(r"/DASH.*", "", backup_video) if isinstance(backup_video, str) else ""
 
                         title_payload = {"content": f"{title}\n<{trimmed_video_url}>"}
                         if nsfw:

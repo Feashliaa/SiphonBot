@@ -1,4 +1,5 @@
 import requests
+import requests.auth
 
 
 def get_reddit_access_token(client_id, client_secret, username, password, user_agent):

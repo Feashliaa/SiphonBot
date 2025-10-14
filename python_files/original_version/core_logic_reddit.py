@@ -21,6 +21,7 @@ import sys
 import asyncio
 import subprocess
 import requests
+from requests.auth import HTTPBasicAuth
 import re
 import os
 import discord
@@ -79,14 +80,21 @@ def sanitize_filename(filename):
     return re.sub(r'[\\/*?:"<>|]', "_", filename).strip()
 
 
-# Define your function to get the Reddit access token
 def get_reddit_access_token():
-    auth = requests.auth.HTTPBasicAuth(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET)
-    data = {
-        "grant_type": "password",
-        "username": REDDIT_USERNAME,
-        "password": REDDIT_PASSWORD,
-    }
+    if not all([REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USER_AGENT]):
+        raise ValueError("Reddit credentials (client_id, client_secret, user_agent) must not be None.")
+    if REDDIT_CLIENT_ID is None or REDDIT_CLIENT_SECRET is None:
+        raise ValueError("REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET must not be None.")
+    auth = HTTPBasicAuth(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET)
+    data = {"grant_type": "client_credentials"}
+    response = requests.post(
+        "https://www.reddit.com/api/v1/access_token",
+        auth=auth,
+        data=data,
+        headers={"User-Agent": REDDIT_USER_AGENT},
+    )
+    token = response.json()["access_token"]
+
     headers = {"User-Agent": REDDIT_USER_AGENT}
 
     try:
@@ -109,6 +117,7 @@ def get_reddit_access_token():
         raise  # Re-raise the exception to handle it higher up
     except KeyError as key_err:
         print(f"KeyError: {key_err}")
+        raise  # Re-raise the exception to handle it higher up
         raise  # Re-raise the exception to handle it higher up
 
 
@@ -335,15 +344,17 @@ class ScraperBot:
                     )
                 else:
                     print("No image, video, gif, or gallery found.")
-                    await interaction.followup.send(
-                        f"No image, video, gif, or gallery found for post: {title} ({post.get('url')})"
-                    )
+                    if interaction is not None:
+                        await interaction.followup.send(
+                            f"No image, video, gif, or gallery found for post: {title} ({post.get('url')})"
+                        )
 
         except Exception as e:
             print("Error getting post content:", e)
-            await interaction.followup.send(
-                f"An unexpected error occurred while processing the post: {e}"
-            )
+            if interaction is not None:
+                await interaction.followup.send(
+                    f"An unexpected error occurred while processing the post: {e}"
+                )
 
     async def process_gallery(self, post, title, interaction, nsfw):
         try:
@@ -422,8 +433,10 @@ class ScraperBot:
                 content_type = response.headers.get("Content-Type")
 
                 if (
-                    "application/vnd.apple.mpegurl" in content_type
-                    or "application/x-mpegurl" in content_type
+                    (content_type is not None and (
+                        "application/vnd.apple.mpegurl" in content_type
+                        or "application/x-mpegurl" in content_type
+                    ))
                 ):
                     # HLS stream detected, use FFmpeg to convert
                     video_filename = sanitize_filename(f"{title}.mp4")
@@ -472,10 +485,8 @@ class ScraperBot:
                             )
                             return
 
-                        # Send video to Discord
-
                         # Regular expression to remove the /DASH and everything after it
-                        trimmed_video_url = re.sub(r"/DASH.*", "", backup_video)
+                        trimmed_video_url = re.sub(r"/DASH.*", "", backup_video if backup_video is not None else "")
 
                         title_payload = {"content": f"{title}\n<{trimmed_video_url}>"}
                         if nsfw:
@@ -620,7 +631,7 @@ class ScraperBot:
             if not top_posts:
                 print(f"No posts found for subreddit: {subreddit_name}")
                 return
-            for post in top_posts:
+            async for post in top_posts:
                 await self.get_post_content(post)
 
         # Get the existing event loop or create a new one if none exists
@@ -659,8 +670,17 @@ class ScraperBot:
                 webhook_message = {
                     "content": f"{self.bot.user} is ready to receive commands!"
                 }
-                requests.post(WEBHOOK, json=webhook_message)
+                if WEBHOOK is not None:
+                    requests.post(WEBHOOK, json=webhook_message)
+                else:
+                    print("WEBHOOK is not set. Skipping webhook notification.")
             except Exception as e:
                 print(f"Failed to send webhook message: {e}")
 
-        self.bot.run(DISCORD_TOKEN)
+        # Reference on_ready to avoid "not accessed" warning
+        _ = on_ready
+
+        if DISCORD_TOKEN is not None:
+            self.bot.run(DISCORD_TOKEN)
+        else:
+            print("DISCORD_TOKEN is not set. Cannot run Discord bot.")

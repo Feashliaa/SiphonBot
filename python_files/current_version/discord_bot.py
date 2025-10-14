@@ -35,7 +35,7 @@ class ScraperBot:
             subreddit_number: int,
             num_posts: int = 1,
             filter_type: str = "hot",
-            time_range: str = None,
+            time_range: str = "",
         ):
             if subreddit_number in self.subreddits:
                 subreddit_url = self.subreddits[subreddit_number]
@@ -76,7 +76,7 @@ class ScraperBot:
             subreddit_name: str,
             num_posts: int = 1,
             filter_type: str = "hot",
-            time_range: str = None,
+            time_range: str = "",
         ):
             subreddit_exists = check_subreddit_exists(
                 subreddit_name, self.reddit_headers
@@ -111,7 +111,7 @@ class ScraperBot:
             ]
 
         @scrape_custom_command.autocomplete("time_range")
-        async def time_range_autocomplete(
+        async def time_range_autocomplete_custom(
             interaction: discord.Interaction, current: str
         ):
             return [
@@ -121,7 +121,7 @@ class ScraperBot:
             ]
 
         @scrape_custom_command.autocomplete("num_posts")
-        async def num_posts_autocomplete(
+        async def num_posts_autocomplete_custom(
             interaction: discord.Interaction, current: str
         ):
             return [
@@ -141,7 +141,7 @@ class ScraperBot:
             ]
 
         @scrape_command.autocomplete("filter_type")
-        async def filter_type_autocomplete(
+        async def filter_type_autocomplete_scrape(
             interaction: discord.Interaction, current: str
         ):
             return [
