@@ -15,5 +15,5 @@ def load_env_variables():
         "REDDIT_USERNAME": os.getenv("REDDIT_USERNAME"),
         "REDDIT_PASSWORD": os.getenv("REDDIT_PASSWORD"),
         "DISCORD_TOKEN": os.getenv("DISCORD_TOKEN"),
-        "WEBHOOK": os.getenv("WEBHOOK")
+        "WEBHOOK": os.getenv("WEBHOOK"),
     }

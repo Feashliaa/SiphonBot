@@ -47,10 +47,10 @@ if os.getenv("CHECK_ENV"):
     # Discord token and webhook URLs from local environment variables
     DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
     WEBHOOK = os.getenv("WEBHOOK")
-    
+
     print("DISCORD_TOKEN FROM CLI:", DISCORD_TOKEN)
     print("WEBHOOK FROM CLI:", WEBHOOK)
-    
+
 else:
     # Running in a web server environment (e.g., Azure App Service, Heroku)
 
@@ -75,21 +75,26 @@ else:
     print("DISCORD_TOKEN:", DISCORD_TOKEN)
     print("WEBHOOK:", WEBHOOK)
 
+
 # Function to sanitize the filename of the image or video scraped from Reddit
 def sanitize_filename(filename):
     return re.sub(r'[\\/*?:"<>|]', "_", filename)
+
 
 class ScraperBot:
     post_urls = {}  # Dictionary to store post URLs
 
     def __init__(self):
-        
-        
+
         # Fetch proxies
-        http_proxies_response = requests.get('https://api.proxyscrape.com/?request=getproxies&proxytype=http&timeout=10000&country=all&ssl=all&anonymity=all')
-        http_proxies = http_proxies_response.text.split('\n')
-        https_proxies_response = requests.get('https://api.proxyscrape.com/?request=getproxies&proxytype=https&timeout=10000&country=all&ssl=all&anonymity=all')
-        https_proxies = https_proxies_response.text.split('\n')
+        http_proxies_response = requests.get(
+            "https://api.proxyscrape.com/?request=getproxies&proxytype=http&timeout=10000&country=all&ssl=all&anonymity=all"
+        )
+        http_proxies = http_proxies_response.text.split("\n")
+        https_proxies_response = requests.get(
+            "https://api.proxyscrape.com/?request=getproxies&proxytype=https&timeout=10000&country=all&ssl=all&anonymity=all"
+        )
+        https_proxies = https_proxies_response.text.split("\n")
 
         # Select a proxy
         selected_proxy = http_proxies[0].strip()
@@ -99,7 +104,7 @@ class ScraperBot:
         proxy.proxy_type = ProxyType.MANUAL
         proxy.http_proxy = selected_proxy
         proxy.ssl_proxy = selected_proxy
-        
+
         # original scraperbot code
         # set up selenium options for headless browsing
         options = uc.ChromeOptions()
@@ -115,26 +120,27 @@ class ScraperBot:
         ]
 
         options.add_argument(f"user-agent={random.choice(user_agents)}")
-        
+
         # Set up desired capabilities with proxy
         capabilities = DesiredCapabilities.CHROME.copy()
-        capabilities['proxy'] = selected_proxy
-        capabilities['proxyType'] = "MANUAL"
-        capabilities['httpProxy'] = selected_proxy
-        capabilities['sslProxy'] = selected_proxy
-        
+        capabilities["proxy"] = selected_proxy
+        capabilities["proxyType"] = "MANUAL"
+        capabilities["httpProxy"] = selected_proxy
+        capabilities["sslProxy"] = selected_proxy
+
         # Initialize the undetected Chrome driver
         self.driver = uc.Chrome(options=options, desired_capabilities=capabilities)
 
         # Apply Selenium Stealth settings
-        stealth(self.driver,
-                languages=["en-US", "en"],
-                vendor="Google Inc.",
-                platform="Win32",
-                webgl_vendor="Intel Inc.",
-                renderer="Intel Iris OpenGL Engine",
-                fix_hairline=True
-                )
+        stealth(
+            self.driver,
+            languages=["en-US", "en"],
+            vendor="Google Inc.",
+            platform="Win32",
+            webgl_vendor="Intel Inc.",
+            renderer="Intel Iris OpenGL Engine",
+            fix_hairline=True,
+        )
 
         # Set up the Discord bot with specific intents
         intents = discord.Intents.default()
@@ -289,7 +295,7 @@ class ScraperBot:
                 "window.scrollTo(0, document.body.scrollHeight);"
             )
             print("Waiting for posts to load...")
-                   # Random delay
+            # Random delay
             time.sleep(random.uniform(2, 5))
         except Exception as e:
             print(f"Error scrolling down: {e}")
@@ -305,12 +311,12 @@ class ScraperBot:
 
                 article_elements = self.driver.find_elements(By.TAG_NAME, "article")
                 print(f"Found {len(article_elements)} articles so far.")
-                
+
                 # get the whole html of the page
                 html = self.driver.page_source
-                
+
                 print(html)
-            
+
                 for post in article_elements:
 
                     if len(posts) >= num_posts:  # If we have enough posts,

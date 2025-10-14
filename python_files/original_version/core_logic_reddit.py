@@ -82,7 +82,9 @@ def sanitize_filename(filename):
 
 def get_reddit_access_token():
     if not all([REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USER_AGENT]):
-        raise ValueError("Reddit credentials (client_id, client_secret, user_agent) must not be None.")
+        raise ValueError(
+            "Reddit credentials (client_id, client_secret, user_agent) must not be None."
+        )
     if REDDIT_CLIENT_ID is None or REDDIT_CLIENT_SECRET is None:
         raise ValueError("REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET must not be None.")
     auth = HTTPBasicAuth(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET)
@@ -432,11 +434,9 @@ class ScraperBot:
             async with session.get(video_url, timeout=None) as response:
                 content_type = response.headers.get("Content-Type")
 
-                if (
-                    (content_type is not None and (
-                        "application/vnd.apple.mpegurl" in content_type
-                        or "application/x-mpegurl" in content_type
-                    ))
+                if content_type is not None and (
+                    "application/vnd.apple.mpegurl" in content_type
+                    or "application/x-mpegurl" in content_type
                 ):
                     # HLS stream detected, use FFmpeg to convert
                     video_filename = sanitize_filename(f"{title}.mp4")
@@ -486,7 +486,11 @@ class ScraperBot:
                             return
 
                         # Regular expression to remove the /DASH and everything after it
-                        trimmed_video_url = re.sub(r"/DASH.*", "", backup_video if backup_video is not None else "")
+                        trimmed_video_url = re.sub(
+                            r"/DASH.*",
+                            "",
+                            backup_video if backup_video is not None else "",
+                        )
 
                         title_payload = {"content": f"{title}\n<{trimmed_video_url}>"}
                         if nsfw:
