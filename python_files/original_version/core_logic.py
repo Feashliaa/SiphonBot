@@ -118,11 +118,10 @@ class ScraperBot:
         
         # Set up desired capabilities with proxy
         capabilities = DesiredCapabilities.CHROME.copy()
-        capabilities['proxy'] = {
-            "proxyType": "MANUAL",
-            "httpProxy": selected_proxy,
-            "sslProxy": selected_proxy,
-        }
+        capabilities['proxy'] = selected_proxy
+        capabilities['proxyType'] = "MANUAL"
+        capabilities['httpProxy'] = selected_proxy
+        capabilities['sslProxy'] = selected_proxy
         
         # Initialize the undetected Chrome driver
         self.driver = uc.Chrome(options=options, desired_capabilities=capabilities)
@@ -364,6 +363,8 @@ class ScraperBot:
         self.go_to_subreddit(subreddit)
 
         post_urls = self.select_posts(num_posts)
+        if post_urls is None:
+            post_urls = []
 
         for i, url in enumerate(post_urls):  # Loop through the post URLs
             self.post_urls[i] = url
@@ -418,7 +419,10 @@ class ScraperBot:
         files = {"file": open(image_filename, "rb")}
 
         if caller == "cli_interaction":
-            requests.post(WEBHOOK, files=files, data=title_payload)
+            if WEBHOOK is not None:
+                requests.post(WEBHOOK, files=files, data=title_payload)
+            else:
+                print("Error: WEBHOOK URL is not set.")
         else:
             # handle sending to the discord channel the command was called from
             await self.send_to_discord_channel(title_payload, files, interaction)
@@ -432,7 +436,7 @@ class ScraperBot:
 
         # Determine if the content is a BLOB
         content_type = video_response.headers.get("Content-Type")
-        if (
+        if content_type is not None and (
             "application/vnd.apple.mpegurl" in content_type
             or "application/x-mpegurl" in content_type
         ):
@@ -480,7 +484,10 @@ class ScraperBot:
                     title_payload = {"content": title}
 
                     if caller == "cli_interaction":
-                        requests.post(WEBHOOK, data=title_payload)
+                        if WEBHOOK is not None:
+                            requests.post(WEBHOOK, data=title_payload)
+                        else:
+                            print("Error: WEBHOOK URL is not set.")
                     else:
                         # handle sending to the discord channel the command was called from
                         await self.send_to_discord_channel(
@@ -504,11 +511,13 @@ class ScraperBot:
                     video_file.write(chunk)
 
         # Send video to Discord
-        title_payload = {"content": title}
         files = {"file": open(video_filename, "rb")}
-
+        title_payload = {"content": title}
         if caller == "cli_interaction":
-            requests.post(WEBHOOK, files=files, data=title_payload)
+            if WEBHOOK is not None:
+                requests.post(WEBHOOK, files=files, data=title_payload)
+            else:
+                print("Error: WEBHOOK URL is not set.")
         else:
             # handle sending to the discord channel the command was called from
             await self.send_to_discord_channel(title_payload, files, interaction)
@@ -551,8 +560,17 @@ class ScraperBot:
                 webhook_message = {
                     "content": f"{self.bot.user} is ready to receive commands!"
                 }
-                requests.post(WEBHOOK, json=webhook_message)
+                if WEBHOOK is not None:
+                    requests.post(WEBHOOK, json=webhook_message)
+                else:
+                    print("WEBHOOK is not set. Skipping webhook notification.")
             except Exception as e:
                 print(f"Failed to send webhook message: {e}")
 
-        self.bot.run(DISCORD_TOKEN)
+        # Reference on_ready to avoid "not accessed" warning
+        _ = on_ready
+
+        if DISCORD_TOKEN is not None:
+            self.bot.run(DISCORD_TOKEN)
+        else:
+            print("DISCORD_TOKEN is not set. Cannot run Discord bot.")

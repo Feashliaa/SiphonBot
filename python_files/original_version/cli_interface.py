@@ -20,7 +20,7 @@ def main():
     bot.run_discord()
     
     # Ask the user for the mode they want to run the bot in 
-    '''
+    
     while True:
         mode = input(
             "Enter 'cli' for CLI mode or 'discord' for Discord bot mode: "
@@ -37,6 +37,6 @@ def main():
             break
         else:
              print("Invalid mode entered. Please try again.") 
-    '''
+    
     
 main()
