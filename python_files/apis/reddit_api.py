@@ -1,3 +1,4 @@
+import aiohttp
 import requests
 import requests.auth
 
@@ -16,6 +17,7 @@ def get_reddit_access_token(client_id, client_secret, username, password, user_a
         auth=auth,
         data=data,
         headers=headers,
+        timeout=15,
     )
     response.raise_for_status()
     token = response.json().get("access_token")
@@ -24,13 +26,15 @@ def get_reddit_access_token(client_id, client_secret, username, password, user_a
     return token
 
 
-def check_subreddit_exists(subreddit_name, headers):
-    response = requests.get(
-        f"https://oauth.reddit.com/r/{subreddit_name}/about", headers=headers
-    )
-    if response.status_code == 200:
-        return True
-    elif response.status_code == 404:
-        return False
-    else:
-        response.raise_for_status()
+async def check_subreddit_exists(subreddit_name, headers):
+    async with aiohttp.ClientSession(headers=headers) as session:
+        async with session.get(
+            f"https://oauth.reddit.com/r/{subreddit_name}/about",
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as response:
+            if response.status == 200:
+                return True
+            if response.status == 404:
+                return False
+            response.raise_for_status()
+            return False

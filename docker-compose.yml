@@ -4,6 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: reddit_scraper_bot
+    env_file:
+      - .env
     volumes:
       - .:/usr/src/app
-    command: ["python", "python_files/current_version/main.py"]
+    command: ["python", "python_files/main.py"]

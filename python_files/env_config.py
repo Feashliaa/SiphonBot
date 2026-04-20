@@ -1,10 +1,5 @@
 from dotenv import load_dotenv
 import os
-import logging
-import sys
-from azure.keyvault.secrets import SecretClient
-from azure.identity import DefaultAzureCredential
-
 
 def load_env_variables():
     load_dotenv()

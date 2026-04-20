@@ -1,4 +1,4 @@
 .env
 dev/
-.pyc
 __pycache__/
+*.pyc

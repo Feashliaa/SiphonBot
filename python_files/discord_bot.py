@@ -1,15 +1,13 @@
+import aiohttp
 import discord
-import requests
 from discord import app_commands
-from discord.ext import commands
-from reddit_api import check_subreddit_exists
-from web_scraper import WebScraper
+from apis.reddit_api import check_subreddit_exists
+from media.reddit_handler import RedditMediaHandler
 
 # Constants for dropdown menu options
 FILTER_TYPES = ["hot", "new", "top", "rising"]
 TIME_RANGES = ["hour", "day", "week", "month", "year", "all"]
 NUM_POSTS = [1, 2, 3, 4, 5]
-
 
 class ScraperBot:
     def __init__(self, token, webhook, reddit_headers):
@@ -25,7 +23,7 @@ class ScraperBot:
             4: "dankmemes",
             5: "pics",
         }
-        self.scraper = WebScraper(self.reddit_headers)
+        self.scraper = RedditMediaHandler(self.reddit_headers)
         self.setup_bot_commands()
 
     def setup_bot_commands(self):
@@ -78,11 +76,18 @@ class ScraperBot:
             filter_type: str = "hot",
             time_range: str = "",
         ):
-            subreddit_exists = check_subreddit_exists(
-                subreddit_name, self.reddit_headers
-            )
-            if subreddit_exists:
+            try:
+                subreddit_exists = await check_subreddit_exists(
+                    subreddit_name, self.reddit_headers
+                )
+            except Exception as e:
+                print(f"Error checking subreddit existence: {e}")
+                await interaction.response.send_message(
+                    f"Error checking subreddit: {e}"
+                )
+                return
 
+            if subreddit_exists:
                 if num_posts > 5:
                     num_posts = 5
                 elif num_posts < 1:
@@ -186,12 +191,16 @@ class ScraperBot:
             print(f"Bot is active in {len(self.bot.guilds)} servers.")
             print("Ready to receive commands!")
 
-            # Send a call to the webhook that the bot is ready
+            # Send a notification via webhook that the bot is ready
             try:
-                webhook_message = {
-                    "content": f"{self.bot.user} is ready to receive commands!"
-                }
-                requests.post(self.webhook, json=webhook_message)
+                async with aiohttp.ClientSession() as session:
+                    await session.post(
+                        self.webhook,
+                        json={
+                            "content": f"{self.bot.user} is ready to receive commands!"
+                        },
+                        timeout=aiohttp.ClientTimeout(total=10),
+                    )
             except Exception as e:
                 print(f"Error sending message to webhook: {e}")
 
