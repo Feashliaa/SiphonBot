@@ -1,12 +1,12 @@
-# Yoink
+# SiphonBot
 
 A Discord bot that grabs media from Reddit and YouTube and posts it directly into your server.
 
 ## What it does
 
 - **Reddit scraping** - Pull images, videos, and GIFs from subreddits by filter (hot, new, top, rising)
-- **Reddit links** - Paste any Reddit post URL and Yoink downloads and posts the media, including share links (`/s/` short URLs)
-- **YouTube downloads** - Paste a YouTube URL and Yoink downloads the video and uploads it to Discord
+- **Reddit links** - Paste any Reddit post URL and SiphonBot downloads and posts the media, including share links (`/s/` short URLs)
+- **YouTube downloads** - Paste a YouTube URL and SiphonBot downloads the video and uploads it to Discord
 - **Oversize handling** - Videos that exceed Discord's 50MB upload limit can be compressed (480p re-encode) or split into timestamped parts
 - **NSFW tagging** - Reddit posts marked NSFW are automatically prefixed
 
@@ -22,7 +22,7 @@ A Discord bot that grabs media from Reddit and YouTube and posts it directly int
 
 ## YouTube size limits
 
-Discord's upload limit is 50MB (Level 2 boost). When a video exceeds this, Yoink presents two options via buttons:
+Discord's upload limit is 50MB (Level 2 boost). When a video exceeds this, SiphonBot presents two options via buttons:
 
 - **Compress** - Re-encodes at 480p with a calculated bitrate to fit under the limit. Only offered when the video is short enough for compression to produce a watchable result (≥500kbps video bitrate).
 - **Split into parts** - Splits the video into chunks using stream copy (no quality loss). Each part is labeled with timestamps, e.g. `Video Title (Part 2/4 - 2:30–5:00)`.
