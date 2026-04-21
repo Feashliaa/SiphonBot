@@ -3,6 +3,7 @@ import discord
 from discord import app_commands
 from apis.reddit_api import check_subreddit_exists
 from media.reddit_handler import RedditMediaHandler
+from media.youtube_handler import YouTubeMediaHandler
 
 # Constants for dropdown menu options
 FILTER_TYPES = ["hot", "new", "top", "rising"]
@@ -23,7 +24,8 @@ class ScraperBot:
             4: "dankmemes",
             5: "pics",
         }
-        self.scraper = RedditMediaHandler(self.reddit_headers)
+        self.reddit = RedditMediaHandler(self.reddit_headers)
+        self.youtube = YouTubeMediaHandler()
         self.setup_bot_commands()
 
     def setup_bot_commands(self):
@@ -47,7 +49,7 @@ class ScraperBot:
                 await interaction.followup.send(
                     f"Starting to scrape {num_posts} posts from: r/{subreddit_url}"
                 )
-                await self.scraper.scrape_subreddit(
+                await self.reddit.scrape_subreddit(
                     interaction, subreddit_url, num_posts, filter_type, time_range
                 )
             else:
@@ -97,7 +99,7 @@ class ScraperBot:
                 await interaction.followup.send(
                     f"Starting to scrape {num_posts} posts from: r/{subreddit_name}"
                 )
-                await self.scraper.scrape_subreddit(
+                await self.reddit.scrape_subreddit(
                     interaction, subreddit_name, num_posts, filter_type, time_range
                 )
             else:
@@ -105,6 +107,28 @@ class ScraperBot:
                     "Invalid subreddit name. Community not found. Please provide a valid subreddit name."
                 )
 
+        @self.tree.command(
+            name="reddit", description="Fetch a Reddit post by URL and post its media to this channel"
+        )
+        async def reddit_command(
+            interaction: discord.Interaction,
+            url: str,
+        ):
+            await interaction.response.defer()
+            await interaction.followup.send(f"Fetching Reddit post: {url}")
+            await self.reddit.fetch_and_send(interaction, url)
+
+        @self.tree.command(
+            name="yt", description="Download a YouTube video and post it to this channel"
+        )
+        async def yt_command(
+            interaction: discord.Interaction,
+            url: str,
+        ):
+            await interaction.response.defer()
+            await interaction.followup.send(f"Downloading: {url}")
+            await self.youtube.download_and_send(interaction, url)
+        
         @scrape_custom_command.autocomplete("filter_type")
         async def filter_type_autocomplete(
             interaction: discord.Interaction, current: str

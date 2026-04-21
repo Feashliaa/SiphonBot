@@ -15,7 +15,6 @@ from media.common import (
     send_file,
 )
 
-
 def should_skip(post_data):
     if post_data.get("stickied"):
         return True
@@ -24,7 +23,6 @@ def should_skip(post_data):
     if post_data.get("removed_by_category"):
         return True
     return False
-
 
 class RedditMediaHandler:
     def __init__(self, headers):
@@ -343,3 +341,33 @@ class RedditMediaHandler:
 
         finally:
             cleanup(workdir, gif_filename)
+            
+    async def fetch_and_send(self, interaction, reddit_url):
+        """Fetch a single Reddit post by URL and process its media."""
+        try:
+            # Follow share link redirects (/s/ URLs)
+            if "/s/" in reddit_url:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        reddit_url,
+                        allow_redirects=True,
+                        timeout=aiohttp.ClientTimeout(total=10),
+                    ) as response:
+                        reddit_url = str(response.url)
+
+            path = urlparse(reddit_url).path.rstrip("/")
+            api_url = f"https://oauth.reddit.com{path}.json"
+
+            async with aiohttp.ClientSession(headers=self.headers) as session:
+                async with session.get(
+                    api_url, timeout=aiohttp.ClientTimeout(total=15)
+                ) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+
+            post_data = data[0]["data"]["children"][0]["data"]
+            await self.get_post_content(post_data, interaction)
+
+        except Exception as e:
+            print(f"Error fetching Reddit post: {e}")
+            await safe_followup(interaction, f"Error fetching post: {e}")
