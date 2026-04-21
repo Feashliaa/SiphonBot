@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: reddit_scraper_bot
+    container_name: siphon_bot
     env_file:
       - .env
     volumes:

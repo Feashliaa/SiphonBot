@@ -10,7 +10,7 @@ FILTER_TYPES = ["hot", "new", "top", "rising"]
 TIME_RANGES = ["hour", "day", "week", "month", "year", "all"]
 NUM_POSTS = [1, 2, 3, 4, 5]
 
-class ScraperBot:
+class SiphonBot:
     def __init__(self, token, webhook, reddit_headers):
         self.token = token
         self.webhook = webhook
