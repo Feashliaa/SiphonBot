@@ -3,7 +3,7 @@ import discord
 from discord import app_commands
 from apis.reddit_api import check_subreddit_exists
 from media.reddit_handler import RedditMediaHandler
-from media.youtube_handler import YouTubeMediaHandler
+from media.media_handler import MediaHandler
 
 # Constants for dropdown menu options
 FILTER_TYPES = ["hot", "new", "top", "rising"]
@@ -25,7 +25,7 @@ class SiphonBot:
             5: "pics",
         }
         self.reddit = RedditMediaHandler(self.reddit_headers)
-        self.youtube = YouTubeMediaHandler()
+        self.media = MediaHandler()
         self.setup_bot_commands()
 
     def setup_bot_commands(self):
@@ -119,7 +119,7 @@ class SiphonBot:
             await self.reddit.fetch_and_send(interaction, url)
 
         @self.tree.command(
-            name="yt", description="Download a YouTube video and post it to this channel"
+            name="download", description="Download a YouTube, Instagram, or TikTok video and post it to this channel"
         )
         async def yt_command(
             interaction: discord.Interaction,
@@ -127,7 +127,7 @@ class SiphonBot:
         ):
             await interaction.response.defer()
             await interaction.followup.send(f"Downloading: {url}")
-            await self.youtube.download_and_send(interaction, url)
+            await self.media.download_and_send(interaction, url)
         
         @scrape_custom_command.autocomplete("filter_type")
         async def filter_type_autocomplete(

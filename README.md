@@ -52,7 +52,7 @@ docker compose up -d --build
 ### View logs
 
 ```bash
-docker logs -f reddit_scraper_bot
+docker logs -f siphon_bot
 ```
 
 ### Rebuild after changes
@@ -60,6 +60,12 @@ docker logs -f reddit_scraper_bot
 ```bash
 docker compose down
 docker compose up -d --build
+```
+
+
+### All in One Line
+```bash
+docker compose down && docker compose up -d --build && docker logs -f siphon_bot
 ```
 
 ## Project structure

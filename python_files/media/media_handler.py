@@ -82,7 +82,7 @@ class OversizeView(View):
         await self._disable_all(interaction, "Cancelled")
 
 
-class YouTubeMediaHandler:
+class MediaHandler:
     def __init__(self):
         pass
 
@@ -354,11 +354,16 @@ class YouTubeMediaHandler:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, lambda: self._yt_extract(url, opts))
 
+    # Platforms that serve single combined files (no separate video/audio streams)
+    SINGLE_FILE_DOMAINS = ["instagram.com", "tiktok.com"]
+
     async def _download(self, url, output_path, format_str=None):
-        fmt = (
-            format_str
-            or "bestvideo[ext=mp4][filesize<45M]+bestaudio[ext=m4a]/best[ext=mp4][filesize<45M]/best[filesize<45M]"
-        )
+        if format_str:
+            fmt = format_str
+        elif any(domain in url for domain in self.SINGLE_FILE_DOMAINS):
+            fmt = "best[filesize<45M]/best"
+        else:
+            fmt = "bestvideo[ext=mp4][filesize<45M]+bestaudio[ext=m4a]/best[ext=mp4][filesize<45M]/best[filesize<45M]"
         opts = {
             "quiet": True,
             "no_warnings": True,
