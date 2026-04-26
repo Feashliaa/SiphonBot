@@ -4,6 +4,7 @@ import tempfile
 import uuid
 import aiohttp
 import discord
+import shutil
 
 MAX_UPLOAD_BYTES = int(os.getenv("DISCORD_MAX_UPLOAD_MB", "10")) * 1024 * 1024
 
@@ -19,10 +20,7 @@ def cleanup(workdir, filepath=None):
         if filepath and os.path.exists(filepath):
             os.remove(filepath)
         if workdir and os.path.isdir(workdir):
-            try:
-                os.rmdir(workdir)
-            except OSError:
-                pass
+            shutil.rmtree(workdir, ignore_errors=True)
     except Exception as e:
         print(f"Cleanup error: {e}")
 

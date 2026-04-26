@@ -2,8 +2,10 @@ import re
 from urllib.parse import urlparse
 import ipaddress
 
+
 def sanitize_filename(filename):
     return re.sub(r'[\\/*?:"<>|]', "_", filename).strip()
+
 
 def is_safe_url(url):
     try:
@@ -11,7 +13,11 @@ def is_safe_url(url):
         hostname = parsed.hostname
         if not hostname or not parsed.scheme in ("http", "https"):
             return False
-        # Block private/internal IPs
+        path_lower = parsed.path.lower()
+        if path_lower.endswith(
+            (".exe", ".bat", ".cmd", ".sh", ".js", ".msi", ".m3u8", ".m3u")
+        ):
+            return False
         try:
             ip = ipaddress.ip_address(hostname)
             if ip.is_private or ip.is_loopback or ip.is_reserved:
