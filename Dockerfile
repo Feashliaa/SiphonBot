@@ -16,4 +16,4 @@ COPY python_files /usr/src/app/python_files
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-CMD ["python", "python_files/main.py"]
+CMD ["/bin/sh", "-c", "pip install --upgrade yt-dlp --quiet && python python_files/main.py"]

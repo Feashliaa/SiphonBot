@@ -22,12 +22,12 @@ MAX_DOWNLOAD_BYTES = MAX_UPLOAD_BYTES - (
 MIN_VIDEO_KBPS = 500  # minimum for watchable compressed video
 
 
-def can_compress(info):
-    """Check if a video is short enough to compress into a watchable result."""
+def can_compress(info, upload_limit=None):
     duration = info.get("duration") or 0
     if not duration:
         return False
-    target_kbps = int((MAX_DOWNLOAD_BYTES * 8) // (duration * 1000) * 0.80)
+    limit = (upload_limit or MAX_UPLOAD_BYTES) - (1 * 1024 * 1024)
+    target_kbps = int((limit * 8) // (duration * 1000) * 0.80)
     return (target_kbps - 96) >= MIN_VIDEO_KBPS
 
 
@@ -35,7 +35,7 @@ class OversizeView(View):
     """Buttons shown when a video exceeds the upload limit."""
 
     def __init__(
-        self, handler, interaction, url, info, compress_viable=True, timeout=60
+        self, handler, interaction, url, info, compress_viable=True, timeout=60, upload_limit=None
     ):
         super().__init__(timeout=timeout)
         self.handler = handler
@@ -43,6 +43,7 @@ class OversizeView(View):
         self.url = url
         self.info = info
         self.message: discord.Message | None = None
+        self.upload_limit = upload_limit
 
         if not compress_viable:
             self.compress.disabled = True
@@ -71,14 +72,14 @@ class OversizeView(View):
     async def compress(self, interaction: discord.Interaction, button: Button):
         await self._disable_all(interaction, "Compress")
         await self.handler._compress_and_send(
-            self.original_interaction, self.url, self.info
+            self.original_interaction, self.url, self.info, upload_limit=self.upload_limit
         )
 
     @discord.ui.button(label="Split into parts", style=discord.ButtonStyle.secondary)
     async def split(self, interaction: discord.Interaction, button: Button):
         await self._disable_all(interaction, "Split into parts")
         await self.handler._split_and_send(
-            self.original_interaction, self.url, self.info
+            self.original_interaction, self.url, self.info, upload_limit=self.upload_limit
         )
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
@@ -113,9 +114,9 @@ class MediaHandler:
                     if upload_limit
                     else MAX_UPLOAD_BYTES // (1024 * 1024)
                 )
-                compress_viable = can_compress(info)
+                compress_viable = can_compress(info, upload_limit=upload_limit)
                 view = OversizeView(
-                    self, interaction, url, info, compress_viable=compress_viable
+                    self, interaction, url, info, compress_viable=compress_viable, upload_limit=upload_limit
                 )
                 msg = await interaction.followup.send(
                     f"Estimated file size is ~{est_mb}MB - exceeds the {limit_mb}MB limit.\nWhat do you want to do?",
@@ -137,7 +138,7 @@ class MediaHandler:
             if file_size > (upload_limit or MAX_UPLOAD_BYTES):
                 compress_viable = can_compress(info)
                 view = OversizeView(
-                    self, interaction, url, info, compress_viable=compress_viable
+                    self, interaction, url, info, compress_viable=compress_viable, upload_limit=upload_limit
                 )
                 msg = await interaction.followup.send(
                     f"Downloaded file is {file_size // (1024 * 1024)}MB - too large.\nWhat do you want to do?",
@@ -207,8 +208,9 @@ class MediaHandler:
 
             target_height = min(source_height, 480)
 
+            limit = (upload_limit or MAX_UPLOAD_BYTES) - (1 * 1024 * 1024)
             target_total_kbps = int(
-                (MAX_DOWNLOAD_BYTES * 8) // (duration * 1000) * 0.80
+                (limit * 8) // (duration * 1000) * 0.80
             )
             audio_kbps = 96
             video_kbps = max(target_total_kbps - audio_kbps, MIN_VIDEO_KBPS)
@@ -288,7 +290,8 @@ class MediaHandler:
                 await safe_followup(interaction, "Could not determine video duration.")
                 return
 
-            num_parts = math.ceil(file_size / MAX_DOWNLOAD_BYTES)
+            limit = (upload_limit or MAX_UPLOAD_BYTES) - (1 * 1024 * 1024)
+            num_parts = math.ceil(file_size / limit)
             segment_duration = math.floor(duration / num_parts)
 
             parts = []
@@ -397,23 +400,16 @@ class MediaHandler:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, lambda: self._yt_extract(url, opts))
 
-    # Platforms that serve single combined files (no separate video/audio streams)
-    SINGLE_FILE_DOMAINS = [
-        "instagram.com",
-        "tiktok.com",
-        "twitter.com",
-        "facebook.com",
-        "x.com",
-    ]
+    MERGE_DOMAINS = ["youtube.com", "youtu.be"]
 
     async def _download(self, url, output_path, format_str=None, upload_limit=None):
-        limit_mb = (upload_limit or MAX_UPLOAD_BYTES) // (1024 * 1024) - 5  # headroom
+        limit_mb = (upload_limit or MAX_UPLOAD_BYTES) // (1024 * 1024) - 5
         if format_str:
             fmt = format_str
-        elif any(domain in url for domain in self.SINGLE_FILE_DOMAINS):
-            fmt = f"best[filesize<{limit_mb}M]/best"
-        else:
+        elif any(domain in url for domain in self.MERGE_DOMAINS):
             fmt = f"bestvideo[ext=mp4][filesize<{limit_mb}M]+bestaudio[ext=m4a]/best[ext=mp4][filesize<{limit_mb}M]/best[filesize<{limit_mb}M]"
+        else:
+            fmt = f"best[filesize<{limit_mb}M]/best"
         opts = {
             "quiet": True,
             "no_warnings": True,

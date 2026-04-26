@@ -29,7 +29,7 @@ class SiphonBot:
         self.media = MediaHandler()
         self.reddit = RedditMediaHandler(self.reddit_auth, self.media)
         self.cooldowns: dict[int, float] = {}
-        self.cooldown_seconds = 30
+        self.cooldown_seconds = 5
         self.setup_bot_commands()
 
     def check_cooldown(self, user_id: int) -> float:
