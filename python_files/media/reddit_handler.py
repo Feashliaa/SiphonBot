@@ -5,7 +5,7 @@ import subprocess
 import re
 from urllib.parse import urljoin, urlparse
 
-from utils import sanitize_filename
+from utils import sanitize_filename, is_safe_url
 from media.common import (
     MAX_UPLOAD_BYTES,
     make_workdir,
@@ -149,6 +149,9 @@ class RedditMediaHandler:
             elif self.media_handler and any(
                 domain in url for domain in self.EXTERNAL_VIDEO_DOMAINS
             ):
+                if not is_safe_url(url):
+                    await safe_followup(interaction, "URL is not safe to access.")
+                    return
                 print(f"External video detected, routing to MediaHandler: {url}")
                 await self.media_handler.download_and_send(interaction, url, upload_limit=upload_limit)
             else:
@@ -369,6 +372,9 @@ class RedditMediaHandler:
 
     async def fetch_and_send(self, interaction, reddit_url, upload_limit=None):
         """Fetch a single Reddit post by URL and process its media."""
+        if not is_safe_url(reddit_url):
+            await safe_followup(interaction, "URL is not safe to access.")
+            return
         try:
             if "/s/" in reddit_url:
                 async with aiohttp.ClientSession() as session:

@@ -7,6 +7,3 @@ services:
     container_name: siphon_bot
     env_file:
       - .env
-    volumes:
-      - .:/usr/src/app
-    command: ["python", "python_files/main.py"]

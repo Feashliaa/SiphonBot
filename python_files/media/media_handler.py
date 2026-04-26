@@ -7,7 +7,7 @@ from discord.ui import View, Button
 
 import yt_dlp
 
-from utils import sanitize_filename
+from utils import sanitize_filename, is_safe_url
 from media.common import (
     MAX_UPLOAD_BYTES,
     make_workdir,
@@ -92,6 +92,10 @@ class MediaHandler:
         pass
 
     async def download_and_send(self, interaction, url, upload_limit=None):
+        if not is_safe_url(url):
+            await safe_followup(interaction, "URL is not safe to access.")
+            return
+        
         workdir = make_workdir()
         filepath = None
 
