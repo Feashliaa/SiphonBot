@@ -16,7 +16,9 @@ from media.common import (
     send_file,
 )
 
-MAX_DOWNLOAD_BYTES = MAX_UPLOAD_BYTES - (5 * 1024 * 1024)  # 45MB target
+MAX_DOWNLOAD_BYTES = MAX_UPLOAD_BYTES - (
+    1 * 1024 * 1024
+)  # 1MB buffer for metadata and encoding overhead
 MIN_VIDEO_KBPS = 500  # minimum for watchable compressed video
 
 
@@ -32,7 +34,9 @@ def can_compress(info):
 class OversizeView(View):
     """Buttons shown when a video exceeds the upload limit."""
 
-    def __init__(self, handler, interaction, url, info, compress_viable=True, timeout=60):
+    def __init__(
+        self, handler, interaction, url, info, compress_viable=True, timeout=60
+    ):
         super().__init__(timeout=timeout)
         self.handler = handler
         self.original_interaction = interaction
@@ -86,7 +90,7 @@ class MediaHandler:
     def __init__(self):
         pass
 
-    async def download_and_send(self, interaction, url):
+    async def download_and_send(self, interaction, url, upload_limit=None):
         workdir = make_workdir()
         filepath = None
 
@@ -104,9 +108,15 @@ class MediaHandler:
 
             if estimated_size and estimated_size > MAX_DOWNLOAD_BYTES:
                 est_mb = estimated_size // (1024 * 1024)
-                limit_mb = MAX_UPLOAD_BYTES // (1024 * 1024)
+                limit_mb = (
+                    upload_limit // (1024 * 1024)
+                    if upload_limit
+                    else MAX_UPLOAD_BYTES // (1024 * 1024)
+                )
                 compress_viable = can_compress(info)
-                view = OversizeView(self, interaction, url, info, compress_viable=compress_viable)
+                view = OversizeView(
+                    self, interaction, url, info, compress_viable=compress_viable
+                )
                 msg = await interaction.followup.send(
                     f"Estimated file size is ~{est_mb}MB - exceeds the {limit_mb}MB limit.\nWhat do you want to do?",
                     view=view,
@@ -117,16 +127,18 @@ class MediaHandler:
             filename = sanitize_filename(f"{title}.mp4")
             filepath = os.path.join(workdir, filename)
 
-            await self._download(url, filepath)
+            await self._download(url, filepath, upload_limit=upload_limit)
 
             if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
                 await safe_followup(interaction, "Download failed - file is empty.")
                 return
 
             file_size = os.path.getsize(filepath)
-            if file_size > MAX_UPLOAD_BYTES:
+            if file_size > (upload_limit or MAX_UPLOAD_BYTES):
                 compress_viable = can_compress(info)
-                view = OversizeView(self, interaction, url, info, compress_viable=compress_viable)
+                view = OversizeView(
+                    self, interaction, url, info, compress_viable=compress_viable
+                )
                 msg = await interaction.followup.send(
                     f"Downloaded file is {file_size // (1024 * 1024)}MB - too large.\nWhat do you want to do?",
                     view=view,
@@ -142,15 +154,22 @@ class MediaHandler:
         finally:
             cleanup(workdir, filepath)
 
-    async def _compress_and_send(self, interaction, url, info):
+    async def _compress_and_send(self, interaction, url, info, upload_limit=None):
         workdir = make_workdir()
         title = info.get("title", "video")
         raw_path = os.path.join(workdir, sanitize_filename(f"{title}_raw.mp4"))
         out_path = os.path.join(workdir, sanitize_filename(f"{title}.mp4"))
 
         try:
-            await safe_followup(interaction, "Compressing video to fit under the limit...")
-            await self._download(url, raw_path, format_str="best[ext=mp4]/best")
+            await safe_followup(
+                interaction, "Compressing video to fit under the limit..."
+            )
+            await self._download(
+                url,
+                raw_path,
+                format_str="best[ext=mp4]/best",
+                upload_limit=upload_limit,
+            )
 
             if not os.path.exists(raw_path) or os.path.getsize(raw_path) == 0:
                 await safe_followup(interaction, "Download failed.")
@@ -164,14 +183,22 @@ class MediaHandler:
             # Get source height to avoid upscaling
             loop = asyncio.get_event_loop()
             probe_cmd = [
-                "ffprobe", "-v", "quiet",
-                "-select_streams", "v:0",
-                "-show_entries", "stream=height",
-                "-of", "default=noprint_wrappers=1:nokey=1",
+                "ffprobe",
+                "-v",
+                "quiet",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=height",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
                 raw_path,
             ]
             probe_result = await loop.run_in_executor(
-                None, lambda: subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
+                None,
+                lambda: subprocess.run(
+                    probe_cmd, capture_output=True, text=True, timeout=30
+                ),
             )
             try:
                 source_height = int(probe_result.stdout.strip())
@@ -180,7 +207,9 @@ class MediaHandler:
 
             target_height = min(source_height, 480)
 
-            target_total_kbps = int((MAX_DOWNLOAD_BYTES * 8) // (duration * 1000) * 0.80)
+            target_total_kbps = int(
+                (MAX_DOWNLOAD_BYTES * 8) // (duration * 1000) * 0.80
+            )
             audio_kbps = 96
             video_kbps = max(target_total_kbps - audio_kbps, MIN_VIDEO_KBPS)
 
@@ -190,13 +219,20 @@ class MediaHandler:
                 ffmpeg_cmd += ["-vf", f"scale=-2:{target_height}"]
 
             ffmpeg_cmd += [
-                "-c:v", "libx264",
-                "-b:v", f"{video_kbps}k",
-                "-maxrate", f"{video_kbps}k",
-                "-bufsize", f"{video_kbps}k",
-                "-preset", "veryfast",
-                "-c:a", "aac",
-                "-b:a", f"{audio_kbps}k",
+                "-c:v",
+                "libx264",
+                "-b:v",
+                f"{video_kbps}k",
+                "-maxrate",
+                f"{video_kbps}k",
+                "-bufsize",
+                f"{video_kbps}k",
+                "-preset",
+                "veryfast",
+                "-c:a",
+                "aac",
+                "-b:a",
+                f"{audio_kbps}k",
                 out_path,
             ]
 
@@ -205,12 +241,14 @@ class MediaHandler:
             )
 
             file_size = os.path.getsize(out_path)
-            if file_size > MAX_UPLOAD_BYTES:
+            if file_size > (upload_limit or MAX_UPLOAD_BYTES):
                 await safe_followup(
                     interaction,
                     f"Compressed to {file_size // (1024 * 1024)}MB - still too large. Splitting instead...",
                 )
-                await self._split_and_send(interaction, url, info)
+                await self._split_and_send(
+                    interaction, url, info, upload_limit=upload_limit
+                )
                 return
 
             await send_file(interaction, title, out_path)
@@ -222,7 +260,7 @@ class MediaHandler:
             cleanup(workdir, raw_path)
             cleanup(workdir, out_path)
 
-    async def _split_and_send(self, interaction, url, info):
+    async def _split_and_send(self, interaction, url, info, upload_limit=None):
         """Split video into chunks that each fit under the upload limit."""
         workdir = make_workdir()
         title = info.get("title", "video")
@@ -233,7 +271,12 @@ class MediaHandler:
                 interaction, "Downloading and splitting video into parts..."
             )
 
-            await self._download(url, raw_path, format_str="best[ext=mp4]/best")
+            await self._download(
+                url,
+                raw_path,
+                format_str="best[ext=mp4]/best",
+                upload_limit=upload_limit,
+            )
 
             if not os.path.exists(raw_path) or os.path.getsize(raw_path) == 0:
                 await safe_followup(interaction, "Download failed.")
@@ -355,15 +398,22 @@ class MediaHandler:
         return await loop.run_in_executor(None, lambda: self._yt_extract(url, opts))
 
     # Platforms that serve single combined files (no separate video/audio streams)
-    SINGLE_FILE_DOMAINS = ["instagram.com", "tiktok.com"]
+    SINGLE_FILE_DOMAINS = [
+        "instagram.com",
+        "tiktok.com",
+        "twitter.com",
+        "facebook.com",
+        "x.com",
+    ]
 
-    async def _download(self, url, output_path, format_str=None):
+    async def _download(self, url, output_path, format_str=None, upload_limit=None):
+        limit_mb = (upload_limit or MAX_UPLOAD_BYTES) // (1024 * 1024) - 5  # headroom
         if format_str:
             fmt = format_str
         elif any(domain in url for domain in self.SINGLE_FILE_DOMAINS):
-            fmt = "best[filesize<45M]/best"
+            fmt = f"best[filesize<{limit_mb}M]/best"
         else:
-            fmt = "bestvideo[ext=mp4][filesize<45M]+bestaudio[ext=m4a]/best[ext=mp4][filesize<45M]/best[filesize<45M]"
+            fmt = f"bestvideo[ext=mp4][filesize<{limit_mb}M]+bestaudio[ext=m4a]/best[ext=mp4][filesize<{limit_mb}M]/best[filesize<{limit_mb}M]"
         opts = {
             "quiet": True,
             "no_warnings": True,

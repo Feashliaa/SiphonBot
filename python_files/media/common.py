@@ -5,12 +5,14 @@ import uuid
 import aiohttp
 import discord
 
-MAX_UPLOAD_BYTES = int(os.getenv("DISCORD_MAX_UPLOAD_MB", "50")) * 1024 * 1024
+MAX_UPLOAD_BYTES = int(os.getenv("DISCORD_MAX_UPLOAD_MB", "10")) * 1024 * 1024
+
 
 def make_workdir():
     path = os.path.join(tempfile.gettempdir(), f"media_{uuid.uuid4().hex}")
     os.makedirs(path, exist_ok=True)
     return path
+
 
 def cleanup(workdir, filepath=None):
     try:
@@ -24,6 +26,7 @@ def cleanup(workdir, filepath=None):
     except Exception as e:
         print(f"Cleanup error: {e}")
 
+
 async def safe_followup(interaction, message):
     if interaction is None or not hasattr(interaction, "followup"):
         return
@@ -32,6 +35,7 @@ async def safe_followup(interaction, message):
     except Exception as e:
         print(f"Failed to send followup: {e}")
 
+
 async def send_content(interaction, content):
     if interaction is None:
         return
@@ -39,6 +43,7 @@ async def send_content(interaction, content):
         await interaction.channel.send(content=content)
     except Exception as e:
         print(f"Failed to send content: {e}")
+
 
 async def send_file(interaction, content, filepath):
     if interaction is None:

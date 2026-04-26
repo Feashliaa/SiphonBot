@@ -1,7 +1,8 @@
 import aiohttp
 import discord
+import time
 from discord import app_commands
-from apis.reddit_api import check_subreddit_exists
+from apis.reddit_api import RedditAuth, check_subreddit_exists
 from media.reddit_handler import RedditMediaHandler
 from media.media_handler import MediaHandler
 
@@ -10,11 +11,12 @@ FILTER_TYPES = ["hot", "new", "top", "rising"]
 TIME_RANGES = ["hour", "day", "week", "month", "year", "all"]
 NUM_POSTS = [1, 2, 3, 4, 5]
 
+
 class SiphonBot:
-    def __init__(self, token, webhook, reddit_headers):
+    def __init__(self, token, webhook, reddit_auth: RedditAuth):
         self.token = token
         self.webhook = webhook
-        self.reddit_headers = reddit_headers
+        self.reddit_auth = reddit_auth
         self.bot = discord.Client(intents=discord.Intents.default())
         self.tree = app_commands.CommandTree(self.bot)
         self.subreddits = {
@@ -24,9 +26,19 @@ class SiphonBot:
             4: "dankmemes",
             5: "pics",
         }
-        self.reddit = RedditMediaHandler(self.reddit_headers)
         self.media = MediaHandler()
+        self.reddit = RedditMediaHandler(self.reddit_auth, self.media)
+        self.cooldowns: dict[int, float] = {}
+        self.cooldown_seconds = 30
         self.setup_bot_commands()
+
+    def check_cooldown(self, user_id: int) -> float:
+        """Returns seconds remaining, or 0 if ready."""
+        remaining = self.cooldowns.get(user_id, 0) - time.time()
+        return max(remaining, 0)
+
+    def set_cooldown(self, user_id: int):
+        self.cooldowns[user_id] = time.time() + self.cooldown_seconds
 
     def setup_bot_commands(self):
         @self.tree.command(name="scrape", description="Scrape posts from a subreddit")
@@ -37,6 +49,13 @@ class SiphonBot:
             filter_type: str = "hot",
             time_range: str = "",
         ):
+            remaining = self.check_cooldown(interaction.user.id)
+            if remaining:
+                await interaction.response.send_message(
+                    f"Cooldown — try again in {int(remaining)}s.", ephemeral=True
+                )
+                return
+
             if subreddit_number in self.subreddits:
                 subreddit_url = self.subreddits[subreddit_number]
 
@@ -45,12 +64,16 @@ class SiphonBot:
                 elif num_posts < 1:
                     num_posts = 1
 
+                self.set_cooldown(interaction.user.id)
                 await interaction.response.defer()
                 await interaction.followup.send(
                     f"Starting to scrape {num_posts} posts from: r/{subreddit_url}"
                 )
+                upload_limit = interaction.guild.filesize_limit if interaction.guild else None
+                print(f"Guild upload limit: {upload_limit} bytes")
                 await self.reddit.scrape_subreddit(
-                    interaction, subreddit_url, num_posts, filter_type, time_range
+                    interaction, subreddit_url, num_posts, filter_type, time_range,
+                    upload_limit=upload_limit
                 )
             else:
                 await interaction.response.send_message(
@@ -78,9 +101,16 @@ class SiphonBot:
             filter_type: str = "hot",
             time_range: str = "",
         ):
+            remaining = self.check_cooldown(interaction.user.id)
+            if remaining:
+                await interaction.response.send_message(
+                    f"Cooldown — try again in {int(remaining)}s.", ephemeral=True
+                )
+                return
+
             try:
                 subreddit_exists = await check_subreddit_exists(
-                    subreddit_name, self.reddit_headers
+                    subreddit_name, self.reddit_auth
                 )
             except Exception as e:
                 print(f"Error checking subreddit existence: {e}")
@@ -95,6 +125,7 @@ class SiphonBot:
                 elif num_posts < 1:
                     num_posts = 1
 
+                self.set_cooldown(interaction.user.id)
                 await interaction.response.defer()
                 await interaction.followup.send(
                     f"Starting to scrape {num_posts} posts from: r/{subreddit_name}"
@@ -108,27 +139,49 @@ class SiphonBot:
                 )
 
         @self.tree.command(
-            name="reddit", description="Fetch a Reddit post by URL and post its media to this channel"
+            name="reddit",
+            description="Fetch a Reddit post by URL and post its media to this channel",
         )
         async def reddit_command(
             interaction: discord.Interaction,
             url: str,
         ):
+            remaining = self.check_cooldown(interaction.user.id)
+            if remaining:
+                await interaction.response.send_message(
+                    f"Cooldown — try again in {int(remaining)}s.", ephemeral=True
+                )
+                return
+
+            self.set_cooldown(interaction.user.id)
             await interaction.response.defer()
             await interaction.followup.send(f"Fetching Reddit post: {url}")
-            await self.reddit.fetch_and_send(interaction, url)
+            upload_limit = interaction.guild.filesize_limit if interaction.guild else None
+            print(f"Guild upload limit: {upload_limit} bytes")
+            await self.reddit.fetch_and_send(interaction, url, upload_limit=upload_limit)
 
         @self.tree.command(
-            name="download", description="Download a YouTube, Instagram, or TikTok video and post it to this channel"
+            name="download",
+            description="Download a YouTube, Instagram, or TikTok video and post it to this channel",
         )
-        async def yt_command(
+        async def dl_command(
             interaction: discord.Interaction,
             url: str,
         ):
+            remaining = self.check_cooldown(interaction.user.id)
+            if remaining:
+                await interaction.response.send_message(
+                    f"Cooldown — try again in {int(remaining)}s.", ephemeral=True
+                )
+                return
+
+            self.set_cooldown(interaction.user.id)
             await interaction.response.defer()
             await interaction.followup.send(f"Downloading: {url}")
-            await self.media.download_and_send(interaction, url)
-        
+            upload_limit = interaction.guild.filesize_limit if interaction.guild else None
+            print(f"Guild upload limit: {upload_limit} bytes")
+            await self.media.download_and_send(interaction, url, upload_limit=upload_limit)
+
         @scrape_custom_command.autocomplete("filter_type")
         async def filter_type_autocomplete(
             interaction: discord.Interaction, current: str
@@ -199,7 +252,6 @@ class SiphonBot:
                 if current in str(n)
             ]
 
-    # async commands
     async def sync_commands(self):
         try:
             synced = await self.tree.sync()
@@ -215,7 +267,6 @@ class SiphonBot:
             print(f"Bot is active in {len(self.bot.guilds)} servers.")
             print("Ready to receive commands!")
 
-            # Send a notification via webhook that the bot is ready
             try:
                 async with aiohttp.ClientSession() as session:
                     await session.post(
